@@ -15,7 +15,11 @@ interface TelegramResponse<T> {
   parameters?: { retry_after?: number }
 }
 
-async function callTelegram<T>(token: string, method: string, body: Record<string, unknown>): Promise<T> {
+async function callTelegram<T>(
+  token: string,
+  method: string,
+  body: Record<string, unknown> | FormData,
+): Promise<T> {
   if (!/^\d{5,20}:[A-Za-z0-9_-]{20,200}$/.test(token)) {
     throw new TelegramApiError('invalid_bot_token', false)
   }
@@ -23,9 +27,11 @@ async function callTelegram<T>(token: string, method: string, body: Record<strin
   try {
     response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10_000),
+      ...(body instanceof FormData ? { body } : {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+      signal: AbortSignal.timeout(body instanceof FormData ? 20_000 : 10_000),
     })
   } catch {
     // Bot Token 在请求 URL 中，绝不能把原始网络异常写入日志。
@@ -90,4 +96,22 @@ export async function sendTelegramMessage(token: string, chatId: string, text: s
     link_preview_options: { is_disabled: true },
     protect_content: true,
   })
+}
+
+export async function sendTelegramTextDocument(
+  token: string,
+  chatId: string,
+  text: string,
+  caption: string,
+): Promise<void> {
+  if (!/^-?\d{1,20}$/.test(chatId) || text.length < 1 || caption.length < 1
+    || caption.length > 1024 || new TextEncoder().encode(text).byteLength > 1_000_000) {
+    throw new TelegramApiError('invalid_telegram_document', false)
+  }
+  const form = new FormData()
+  form.set('chat_id', chatId)
+  form.set('caption', caption)
+  form.set('protect_content', 'true')
+  form.set('document', new Blob([text], { type: 'text/plain; charset=utf-8' }), 'omnimail-message.txt')
+  await callTelegram<object>(token, 'sendDocument', form)
 }

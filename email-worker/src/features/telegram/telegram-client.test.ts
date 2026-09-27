@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getTelegramBot, registerTelegramWebhook, sendTelegramMessage, TelegramApiError } from './telegram-client'
+import { getTelegramBot, registerTelegramWebhook, sendTelegramMessage, sendTelegramTextDocument, TelegramApiError } from './telegram-client'
 
 const token = '123456:abcdefghijklmnopqrstuvwxyz'
 afterEach(() => vi.unstubAllGlobals())
@@ -42,5 +42,21 @@ describe('Telegram Bot API client', () => {
     await expect(sendTelegramMessage(token, '123456', 'Mail alert')).rejects.toMatchObject({
       code: 'telegram_forbidden', retryable: false,
     })
+  })
+
+  it('uploads a protected plain text document with its caption', async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ ok: true, result: { message_id: 1 } }))
+    vi.stubGlobal('fetch', fetcher)
+    await sendTelegramTextDocument(token, '123456', '完整正文\n第二行', 'OmniMail 收到新邮件')
+    const [url, init] = fetcher.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/sendDocument')
+    expect(init.headers).toBeUndefined()
+    const form = init.body as FormData
+    expect(form.get('chat_id')).toBe('123456')
+    expect(form.get('caption')).toBe('OmniMail 收到新邮件')
+    expect(form.get('protect_content')).toBe('true')
+    const document = form.get('document') as File
+    expect(document.name).toBe('omnimail-message.txt')
+    expect(await document.text()).toBe('完整正文\n第二行')
   })
 })

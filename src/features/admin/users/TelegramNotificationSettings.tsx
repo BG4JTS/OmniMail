@@ -23,6 +23,7 @@ interface TelegramStatus {
   status: 'active' | 'blocked' | 'disconnected'
   sources: OfficialMailSourceId[]
   detailLevel: 'basic' | 'sender' | 'subject'
+  includeBody: boolean
   quietEnabled: boolean
   quietStart: string
   quietEnd: string
@@ -86,6 +87,7 @@ export function TelegramNotificationSettings({ isSuperAdmin }: { isSuperAdmin: b
       method: 'PATCH',
       body: JSON.stringify({
         enabled: draft.enabled, sources: draft.sources, detailLevel: draft.detailLevel,
+        includeBody: draft.includeBody,
         quietEnabled: draft.quietEnabled, quietStart: draft.quietStart,
         quietEnd: draft.quietEnd, timezone: draft.timezone,
       }),
@@ -165,7 +167,10 @@ export function TelegramNotificationSettings({ isSuperAdmin }: { isSuperAdmin: b
             <option value="sender">{t('包含发件人')}</option>
             <option value="subject">{t('包含发件人与主题')}</option>
           </select></label>
-          <p className="telegram-note">{t('开启发件人或主题后，这些信息会发送给 Telegram；正文和验证码不会发送。')}</p>
+          <label className="telegram-toggle"><input type="checkbox" checked={draft.includeBody}
+            onChange={(event) => setDraft({ ...draft, includeBody: event.target.checked })} />
+            {t('发送 OmniMail 主邮箱的完整纯文本正文')}</label>
+          <p className="telegram-note">{t('默认不发送正文。开启后，主邮箱的正文及其中可能包含的验证码会发送给 Telegram；外部邮箱仍只发送所选的来源、发件人和主题。较长正文会作为文本文件发送。')}</p>
           <label className="telegram-toggle"><input type="checkbox" checked={draft.quietEnabled}
             onChange={(event) => setDraft({ ...draft, quietEnabled: event.target.checked })} />
             {t('启用免打扰')}</label>

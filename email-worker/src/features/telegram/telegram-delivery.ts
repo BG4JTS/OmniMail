@@ -1,7 +1,7 @@
 import type { Env } from '../../app/types'
 import { D1QuotaError } from '../../platform/d1/quota-guard'
 import { MESSAGE_SELECTS } from '../notifications/mail-notification-api'
-import { TelegramApiError, sendTelegramMessage } from './telegram-client'
+import { TelegramApiError, sendTelegramMessage, sendTelegramTextDocument } from './telegram-client'
 import { notificationRoute, quietNow, telegramSetting, telegramSource } from './telegram-common'
 
 interface DeliveryRow {
@@ -17,6 +17,7 @@ interface DeliveryRow {
   endpoint_status: string
   sources_json: string
   detail_level: string
+  include_body: number
   quiet_enabled: number
   quiet_start: string
   quiet_end: string
@@ -33,6 +34,8 @@ interface MailRow {
 const MAX_ENQUEUE = 20
 const ENQUEUE_COOLDOWN = 120
 const SEND_LEASE = 120
+const MAX_STORED_BODY_BYTES = 5_000_000
+const MAX_TEXT_BODY_BYTES = 1_000_000
 
 export async function enqueuePendingNotifications(env: Env, now = Math.floor(Date.now() / 1000)): Promise<number> {
   if (!env.NOTIFICATION_QUEUE) return 0
@@ -92,6 +95,28 @@ async function mailForDelivery(env: Env, row: DeliveryRow): Promise<MailRow | nu
   ).bind(row.user_id, row.account_id, row.message_id).first<MailRow>()
 }
 
+async function mainMailboxBody(env: Env, row: DeliveryRow): Promise<string | null> {
+  const message = await env.DB.prepare(
+    `SELECT m.body_key FROM messages m JOIN mailboxes mb ON mb.address=m.mailbox_address
+     WHERE mb.user_id=? AND m.id=? AND m.direction='incoming'
+       AND m.folder='inbox' AND m.status='ready' LIMIT 1`,
+  ).bind(row.user_id, row.message_id).first<{ body_key: string | null }>()
+  if (!message?.body_key) return null
+  try {
+    // R2 中的 JSON 也可能含大量 HTML；先限制对象大小，避免通知消费占用过多内存。
+    const object = await env.MAIL_BUCKET.get(message.body_key)
+    if (!object || object.size > MAX_STORED_BODY_BYTES) return null
+    const body: unknown = await object.json()
+    if (!body || typeof body !== 'object' || Array.isArray(body)
+      || typeof (body as { text?: unknown }).text !== 'string') return null
+    const text = (body as { text: string }).text
+    return new TextEncoder().encode(text).byteLength <= MAX_TEXT_BODY_BYTES ? text : null
+  } catch {
+    // 正文读取失败时仍发送基础提醒，且不把正文或 R2 异常写进日志。
+    return null
+  }
+}
+
 async function retryLater(env: Env, row: DeliveryRow, error: TelegramApiError, now: number): Promise<void> {
   if (!error.retryable || row.attempts >= 5) {
     await finish(env.DB, row.id, 'failed', now, error.code)
@@ -122,7 +147,7 @@ async function deliver(env: Env, id: string, now: number): Promise<void> {
   const row = await env.DB.prepare(
     `SELECT o.id,o.endpoint_id,o.source,o.account_id,o.message_id,o.attempts,
       e.user_id,e.chat_id,e.enabled,e.status AS endpoint_status,e.sources_json,
-      e.detail_level,e.quiet_enabled,e.quiet_start,e.quiet_end,e.timezone
+      e.detail_level,e.include_body,e.quiet_enabled,e.quiet_start,e.quiet_end,e.timezone
      FROM notification_outbox o JOIN notification_endpoints e ON e.id=o.endpoint_id
      WHERE o.id=? LIMIT 1`,
   ).bind(id).first<DeliveryRow>()
@@ -150,7 +175,23 @@ async function deliver(env: Env, id: string, now: number): Promise<void> {
     return
   }
   try {
-    await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id, messageText(row, mail, origin))
+    const header = messageText(row, mail, origin)
+    if (row.source === 'omnimail' && row.include_body === 1) {
+      const body = await mainMailboxBody(env, row)
+      if (body === null) {
+        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id,
+          `${header}\n正文无法转发，请打开站内链接查看。`)
+      } else if (body.length === 0) {
+        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id,
+          `${header}\n此邮件没有纯文本正文。`)
+      } else if (`${header}\n\n${body}`.length <= 4096) {
+        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id, `${header}\n\n${body}`)
+      } else {
+        await sendTelegramTextDocument(env.TELEGRAM_BOT_TOKEN, row.chat_id, body, header)
+      }
+    } else {
+      await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id, header)
+    }
     await finish(env.DB, id, 'sent', now)
     await env.DB.prepare(
       "UPDATE notification_endpoints SET last_error_code='' WHERE id=? AND last_error_code!=''",
