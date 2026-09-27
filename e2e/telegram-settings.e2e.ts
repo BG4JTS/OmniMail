@@ -2,17 +2,19 @@ import { expect, test } from '@playwright/test'
 import { user } from './omnimail-fixtures'
 
 test('account settings save Telegram sources and privacy choices', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1400 })
   let saved: Record<string, unknown> | null = null
   const telegram = {
     configured: true, botUsername: 'omnimail_test_bot', connected: true,
     enabled: true, status: 'active',
-    sources: ['omnimail', 'gmail', 'qq'], detailLevel: 'basic',
+    sources: ['omnimail', 'gmail', 'qq'], detailLevel: 'basic', includeBody: false,
     quietEnabled: false, quietStart: '22:00', quietEnd: '07:00',
     timezone: 'Asia/Singapore', lastErrorCode: '',
   }
   await page.addInitScript(() => {
     localStorage.setItem('omnimail.deployment-guide.v1', 'seen')
     localStorage.setItem('omnimail-locale', 'zh-CN')
+    localStorage.setItem('omnimail-theme', 'dark')
   })
   await page.route('**://*/api/**', (route) => {
     const request = route.request()
@@ -48,15 +50,32 @@ test('account settings save Telegram sources and privacy choices', async ({ page
   })
   await page.goto('/settings/account')
   const card = page.locator('.telegram-card')
-  await expect(card.getByText('已连接 Telegram 私聊。默认提醒不包含邮件内容。'))
+  await expect(card.getByText('已连接 Telegram 私聊', { exact: true }))
     .toBeVisible({ timeout: 15_000 })
+  await expect(card.getByRole('button', { name: '验证并注册 Telegram Bot' })).toBeHidden()
+  const saveButton = card.getByRole('button', { name: '保存通知设置' })
+  const testButton = card.getByRole('button', { name: '发送测试消息' })
+  const saveBounds = await saveButton.boundingBox()
+  const testBounds = await testButton.boundingBox()
+  expect(saveBounds).not.toBeNull()
+  expect(testBounds).not.toBeNull()
+  expect(testBounds!.y).toBeGreaterThan(saveBounds!.y)
   await card.getByRole('checkbox', { name: 'Gmail' }).uncheck()
   await card.getByRole('combobox', { name: '消息内容' }).selectOption('sender')
+  await card.getByRole('checkbox', { name: '发送 OmniMail 主邮箱的完整纯文本正文' }).check()
   await card.getByRole('checkbox', { name: '启用免打扰' }).check()
-  await card.getByRole('button', { name: '保存通知设置' }).click()
+  await saveButton.click()
   await expect.poll(() => saved).toMatchObject({
-    sources: ['omnimail', 'qq'], detailLevel: 'sender', quietEnabled: true,
+    sources: ['omnimail', 'qq'], detailLevel: 'sender', includeBody: true, quietEnabled: true,
     timezone: 'Asia/Singapore',
   })
   await expect(card.getByText('Telegram 通知设置已保存。')).toBeVisible()
+  await card.getByText('Bot 管理').click()
+  await expect(card.getByRole('button', { name: '验证并注册 Telegram Bot' })).toBeVisible()
+
+  await page.setViewportSize({ width: 375, height: 812 })
+  const mobileSaveBounds = await saveButton.boundingBox()
+  const mobileTestBounds = await testButton.boundingBox()
+  expect(mobileTestBounds!.x).toBe(mobileSaveBounds!.x)
+  expect(mobileTestBounds!.y).toBeGreaterThan(mobileSaveBounds!.y)
 })
