@@ -1,8 +1,11 @@
-import type { Env } from '../../app/types'
+import type { Env, StoredBody } from '../../app/types'
 import { D1QuotaError } from '../../platform/d1/quota-guard'
 import { MESSAGE_SELECTS } from '../notifications/mail-notification-api'
-import { TelegramApiError, sendTelegramMessage, sendTelegramTextDocument } from './telegram-client'
+import {
+  TelegramApiError, sendTelegramMessage, sendTelegramRichMessage, sendTelegramTextDocument,
+} from './telegram-client'
 import { notificationRoute, quietNow, telegramSetting, telegramSource } from './telegram-common'
+import { renderTelegramRichMessage } from './telegram-rich-html'
 
 interface DeliveryRow {
   id: string
@@ -18,6 +21,7 @@ interface DeliveryRow {
   sources_json: string
   detail_level: string
   include_body: number
+  body_format: string
   quiet_enabled: number
   quiet_start: string
   quiet_end: string
@@ -95,7 +99,7 @@ async function mailForDelivery(env: Env, row: DeliveryRow): Promise<MailRow | nu
   ).bind(row.user_id, row.account_id, row.message_id).first<MailRow>()
 }
 
-async function mainMailboxBody(env: Env, row: DeliveryRow): Promise<string | null> {
+async function mainMailboxBody(env: Env, row: DeliveryRow): Promise<StoredBody | null> {
   const message = await env.DB.prepare(
     `SELECT m.body_key FROM messages m JOIN mailboxes mb ON mb.address=m.mailbox_address
      WHERE mb.user_id=? AND m.id=? AND m.direction='incoming'
@@ -110,10 +114,24 @@ async function mainMailboxBody(env: Env, row: DeliveryRow): Promise<string | nul
     if (!body || typeof body !== 'object' || Array.isArray(body)
       || typeof (body as { text?: unknown }).text !== 'string') return null
     const text = (body as { text: string }).text
-    return new TextEncoder().encode(text).byteLength <= MAX_TEXT_BODY_BYTES ? text : null
+    const html = (body as { html?: unknown }).html
+    return new TextEncoder().encode(text).byteLength <= MAX_TEXT_BODY_BYTES
+      ? { text, html: typeof html === 'string' ? html : '' } : null
   } catch {
     // 正文读取失败时仍发送基础提醒，且不把正文或 R2 异常写进日志。
     return null
+  }
+}
+
+async function sendPlainBody(token: string, chatId: string, header: string, body: string | null) {
+  if (body === null) {
+    await sendTelegramMessage(token, chatId, `${header}\n正文无法转发，请打开站内链接查看。`)
+  } else if (!body.length) {
+    await sendTelegramMessage(token, chatId, `${header}\n此邮件没有纯文本正文。`)
+  } else if (`${header}\n\n${body}`.length <= 4096) {
+    await sendTelegramMessage(token, chatId, `${header}\n\n${body}`)
+  } else {
+    await sendTelegramTextDocument(token, chatId, body, header)
   }
 }
 
@@ -147,7 +165,7 @@ async function deliver(env: Env, id: string, now: number): Promise<void> {
   const row = await env.DB.prepare(
     `SELECT o.id,o.endpoint_id,o.source,o.account_id,o.message_id,o.attempts,
       e.user_id,e.chat_id,e.enabled,e.status AS endpoint_status,e.sources_json,
-      e.detail_level,e.include_body,e.quiet_enabled,e.quiet_start,e.quiet_end,e.timezone
+      e.detail_level,e.include_body,e.body_format,e.quiet_enabled,e.quiet_start,e.quiet_end,e.timezone
      FROM notification_outbox o JOIN notification_endpoints e ON e.id=o.endpoint_id
      WHERE o.id=? LIMIT 1`,
   ).bind(id).first<DeliveryRow>()
@@ -178,16 +196,18 @@ async function deliver(env: Env, id: string, now: number): Promise<void> {
     const header = messageText(row, mail, origin)
     if (row.source === 'omnimail' && row.include_body === 1) {
       const body = await mainMailboxBody(env, row)
-      if (body === null) {
-        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id,
-          `${header}\n正文无法转发，请打开站内链接查看。`)
-      } else if (body.length === 0) {
-        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id,
-          `${header}\n此邮件没有纯文本正文。`)
-      } else if (`${header}\n\n${body}`.length <= 4096) {
-        await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id, `${header}\n\n${body}`)
+      const rich = row.body_format === 'rich' && body?.html
+        ? renderTelegramRichMessage(header, body.html) : null
+      if (rich) {
+        try {
+          await sendTelegramRichMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id, rich)
+        } catch (error) {
+          // Telegram 不接受某些合法邮件结构时保留提醒，回退到原有纯文本路径。
+          if (!(error instanceof TelegramApiError) || error.code !== 'telegram_rejected') throw error
+          await sendPlainBody(env.TELEGRAM_BOT_TOKEN, row.chat_id, header, body?.text ?? null)
+        }
       } else {
-        await sendTelegramTextDocument(env.TELEGRAM_BOT_TOKEN, row.chat_id, body, header)
+        await sendPlainBody(env.TELEGRAM_BOT_TOKEN, row.chat_id, header, body?.text ?? null)
       }
     } else {
       await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, row.chat_id, header)

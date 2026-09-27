@@ -24,6 +24,7 @@ interface TelegramStatus {
   sources: OfficialMailSourceId[]
   detailLevel: 'basic' | 'sender' | 'subject'
   includeBody: boolean
+  bodyFormat: 'text' | 'rich'
   quietEnabled: boolean
   quietStart: string
   quietEnd: string
@@ -88,6 +89,7 @@ export function TelegramNotificationSettings({ isSuperAdmin }: { isSuperAdmin: b
       body: JSON.stringify({
         enabled: draft.enabled, sources: draft.sources, detailLevel: draft.detailLevel,
         includeBody: draft.includeBody,
+        bodyFormat: draft.bodyFormat,
         quietEnabled: draft.quietEnabled, quietStart: draft.quietStart,
         quietEnd: draft.quietEnd, timezone: draft.timezone,
       }),
@@ -178,8 +180,17 @@ export function TelegramNotificationSettings({ isSuperAdmin }: { isSuperAdmin: b
             <div className="telegram-body-option">
               <label className="telegram-toggle"><input type="checkbox" checked={draft.includeBody}
                 onChange={(event) => setDraft({ ...draft, includeBody: event.target.checked })} />
-                {t('发送 OmniMail 主邮箱的完整纯文本正文')}</label>
-              <p className="telegram-note">{t('主邮箱正文可能包含验证码，开启后会发送到 Telegram。长正文以文本文件发送；外部邮箱不发送正文。')}</p>
+                {t('发送 OmniMail 主邮箱正文')}</label>
+              {draft.includeBody && <label className="telegram-field"><span>{t('正文格式')}</span><select
+                value={draft.bodyFormat}
+                onChange={(event) => setDraft({ ...draft, bodyFormat: event.target.value as TelegramStatus['bodyFormat'] })}>
+                <option value="text">{t('纯文本')}</option>
+                <option value="rich">{t('Telegram 富文本')}</option>
+              </select></label>}
+              <p className="telegram-note">{t('主邮箱正文可能包含验证码，开启后会发送到 Telegram；外部邮箱不发送正文。')}</p>
+              {draft.includeBody && draft.bodyFormat === 'rich' && <p className="telegram-note">
+                {t('富文本保留常用排版和安全链接；图片及复杂样式请在站内查看。')}
+              </p>}
             </div>
           </div>
           <div className="telegram-section telegram-section--quiet">

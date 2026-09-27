@@ -98,6 +98,19 @@ export async function sendTelegramMessage(token: string, chatId: string, text: s
   })
 }
 
+export async function sendTelegramRichMessage(token: string, chatId: string, html: string): Promise<void> {
+  if (!/^-?\d{1,20}$/.test(chatId) || !html || html.length > 24_000
+    || new TextEncoder().encode(html).byteLength > 32_000) {
+    throw new TelegramApiError('invalid_telegram_rich_message', false)
+  }
+  await callTelegram<object>(token, 'sendRichMessage', {
+    chat_id: chatId,
+    rich_message: { html },
+    skip_entity_detection: true,
+    protect_content: true,
+  })
+}
+
 export async function sendTelegramTextDocument(
   token: string,
   chatId: string,

@@ -13,6 +13,7 @@ interface EndpointRow {
   sources_json: string
   detail_level: string
   include_body: number
+  body_format: string
   quiet_enabled: number
   quiet_start: string
   quiet_end: string
@@ -27,7 +28,7 @@ function reply(body: unknown, status = 200): Response {
 
 function endpoint(db: D1Database, userId: string): Promise<EndpointRow | null> {
   return db.prepare(
-    `SELECT id,chat_id,enabled,status,sources_json,detail_level,include_body,quiet_enabled,
+    `SELECT id,chat_id,enabled,status,sources_json,detail_level,include_body,body_format,quiet_enabled,
       quiet_start,quiet_end,timezone,last_error_code,last_test_at
      FROM notification_endpoints WHERE user_id=? LIMIT 1`,
   ).bind(userId).first<EndpointRow>()
@@ -55,6 +56,7 @@ export async function getTelegramStatus(env: Env, user: SessionUser): Promise<Re
     sources: current ? safeSources(current.sources_json) : [...TELEGRAM_SOURCES],
     detailLevel: current?.detail_level ?? 'basic',
     includeBody: Boolean(current?.include_body),
+    bodyFormat: current?.body_format ?? 'text',
     quietEnabled: Boolean(current?.quiet_enabled),
     quietStart: current?.quiet_start ?? '22:00',
     quietEnd: current?.quiet_end ?? '07:00',
@@ -130,6 +132,7 @@ interface SettingsInput {
   sources?: unknown
   detailLevel?: unknown
   includeBody?: unknown
+  bodyFormat?: unknown
   quietEnabled?: unknown
   quietStart?: unknown
   quietEnd?: unknown
@@ -145,6 +148,8 @@ export async function updateTelegramSettings(env: Env, user: SessionUser, reques
     || typeof input.detailLevel !== 'string'
     || !['basic', 'sender', 'subject'].includes(input.detailLevel)
     || (input.includeBody !== undefined && typeof input.includeBody !== 'boolean')
+    || (input.bodyFormat !== undefined && (typeof input.bodyFormat !== 'string'
+      || !['text', 'rich'].includes(input.bodyFormat)))
     || typeof input.quietEnabled !== 'boolean'
     || !validTime(input.quietStart) || !validTime(input.quietEnd)
     || !validTimezone(input.timezone)) return reply({ error: 'Telegram 通知设置格式不正确。' }, 400)
@@ -156,11 +161,12 @@ export async function updateTelegramSettings(env: Env, user: SessionUser, reques
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE notification_endpoints SET enabled=?,status='active',sources_json=?,
-        detail_level=?,include_body=?,quiet_enabled=?,quiet_start=?,quiet_end=?,timezone=?,
+        detail_level=?,include_body=?,body_format=?,quiet_enabled=?,quiet_start=?,quiet_end=?,timezone=?,
         enabled_at=CASE WHEN enabled=0 AND ?=1 THEN ? ELSE enabled_at END,
         last_error_code='',updated_at=? WHERE user_id=?`,
     ).bind(Number(input.enabled), JSON.stringify(sources), input.detailLevel,
       Number(input.includeBody ?? Boolean(current.include_body)),
+      input.bodyFormat ?? current.body_format,
       Number(input.quietEnabled), input.quietStart, input.quietEnd, input.timezone,
       Number(enabling), now, now, user.id),
     env.DB.prepare(

@@ -8,6 +8,7 @@ test('account settings save Telegram sources and privacy choices', async ({ page
     configured: true, botUsername: 'omnimail_test_bot', connected: true,
     enabled: true, status: 'active',
     sources: ['omnimail', 'gmail', 'qq'], detailLevel: 'basic', includeBody: false,
+    bodyFormat: 'text',
     quietEnabled: false, quietStart: '22:00', quietEnd: '07:00',
     timezone: 'Asia/Singapore', lastErrorCode: '',
   }
@@ -62,11 +63,13 @@ test('account settings save Telegram sources and privacy choices', async ({ page
   expect(testBounds!.y).toBeGreaterThan(saveBounds!.y)
   await card.getByRole('checkbox', { name: 'Gmail' }).uncheck()
   await card.getByRole('combobox', { name: '消息内容' }).selectOption('sender')
-  await card.getByRole('checkbox', { name: '发送 OmniMail 主邮箱的完整纯文本正文' }).check()
+  await card.getByRole('checkbox', { name: '发送 OmniMail 主邮箱正文' }).check()
+  await card.getByRole('combobox', { name: '正文格式' }).selectOption('rich')
   await card.getByRole('checkbox', { name: '启用免打扰' }).check()
   await saveButton.click()
   await expect.poll(() => saved).toMatchObject({
-    sources: ['omnimail', 'qq'], detailLevel: 'sender', includeBody: true, quietEnabled: true,
+    sources: ['omnimail', 'qq'], detailLevel: 'sender', includeBody: true,
+    bodyFormat: 'rich', quietEnabled: true,
     timezone: 'Asia/Singapore',
   })
   await expect(card.getByText('Telegram 通知设置已保存。')).toBeVisible()

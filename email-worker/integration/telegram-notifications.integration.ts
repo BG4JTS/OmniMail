@@ -186,6 +186,50 @@ describe('Telegram notification outbox', () => {
       .bind(outbox!.id).first()).toEqual({ status: 'sent' })
   })
 
+  it.each([
+    { id: 'tg-rich-html', rejectRich: false },
+    { id: 'tg-rich-fallback', rejectRich: true },
+  ])('renders safe rich HTML and falls back on rejection for $id', async ({ id, rejectRich }) => {
+    await env.DB.prepare("UPDATE notification_endpoints SET include_body=1,body_format='rich' WHERE id='tg-endpoint'").run()
+    const bodyKey = `bodies/${id}.json`
+    await env.MAIL_BUCKET.put(bodyKey, JSON.stringify({
+      text: rejectRich ? '纯文本后备' : '',
+      html: '<h2>订单通知</h2><p><b>已完成</b> <a href="https://example.com/order">查看</a></p><script>bad()</script>',
+    }))
+    await env.DB.prepare(
+      `INSERT INTO messages(id,mailbox_address,direction,status,folder,sender_address,body_key,created_at,updated_at)
+       VALUES(?,'tg@example.com','incoming','processing','inbox','sender@example.com',?,?,?)`,
+    ).bind(id, bodyKey, now, now).run()
+    await env.DB.prepare("UPDATE messages SET status='ready' WHERE id=?").bind(id).run()
+    const outbox = await env.DB.prepare('SELECT id FROM notification_outbox WHERE message_id=?')
+      .bind(id).first<{ id: string }>()
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => (
+      rejectRich && String(input).includes('/sendRichMessage')
+        ? Response.json({ ok: false, error_code: 400 }, { status: 400 })
+        : Response.json({ ok: true, result: { message_id: 1 } })
+    ))
+    vi.stubGlobal('fetch', fetcher)
+    const environment = { ...env, TELEGRAM_BOT_TOKEN: '123456:abcdefghijklmnopqrstuvwxyz' } as Env
+    const batch = { messages: [{ body: { id: outbox!.id }, ack: () => undefined,
+      retry: () => { throw new Error('unexpected retry') } }] } as unknown as MessageBatch<{ id: string }>
+    await consumeNotificationQueue(batch, environment)
+    expect(fetcher).toHaveBeenCalledTimes(rejectRich ? 2 : 1)
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toContain('/sendRichMessage')
+    const payload = JSON.parse(init.body as string) as { rich_message: { html: string } }
+    expect(payload.rich_message.html).toContain('<h2>订单通知</h2>')
+    expect(payload.rich_message.html).toContain('<a href="https://example.com/order">查看</a>')
+    expect(payload.rich_message.html).not.toContain('bad()')
+    if (rejectRich) {
+      const fallback = fetcher.mock.calls[1] as unknown as [string, RequestInit]
+      expect(fallback[0]).toContain('/sendMessage')
+      expect(JSON.parse(fallback[1].body as string).text).toContain('纯文本后备')
+    }
+    expect(await env.DB.prepare('SELECT status FROM notification_outbox WHERE id=?')
+      .bind(outbox!.id).first()).toEqual({ status: 'sent' })
+    await env.DB.prepare("UPDATE notification_endpoints SET body_format='text' WHERE id='tg-endpoint'").run()
+  })
+
   it('keeps external mail metadata-only even when body forwarding is enabled', async () => {
     await env.DB.prepare("UPDATE notification_endpoints SET include_body=1 WHERE id='tg-endpoint'").run()
     await statement('gmail', 22).run()
@@ -258,16 +302,19 @@ describe('Telegram notification outbox', () => {
     const pairedBefore = await env.DB.prepare(
       "SELECT sources_json FROM notification_endpoints WHERE user_id='telegram-pair-owner'",
     ).first()
-    const request = (sources: string[], includeBody: unknown = true) => new Request('https://mail.example.com/api/notification-channels/telegram', {
+    const request = (sources: string[], includeBody: unknown = true, bodyFormat: unknown = 'rich') => new Request('https://mail.example.com/api/notification-channels/telegram', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: true, sources, detailLevel: 'basic', includeBody, quietEnabled: true,
+      body: JSON.stringify({ enabled: true, sources, detailLevel: 'basic', includeBody, bodyFormat, quietEnabled: true,
         quietStart: '22:00', quietEnd: '07:00', timezone: 'Asia/Singapore' }),
     })
     expect((await updateTelegramSettings(environment, owner, request(['attacker']))).status).toBe(400)
     expect((await updateTelegramSettings(environment, owner, request(['gmail'], 'yes'))).status).toBe(400)
-    expect((await updateTelegramSettings(environment, owner, request(['gmail']))).status).toBe(200)
-    expect(await env.DB.prepare("SELECT sources_json,include_body FROM notification_endpoints WHERE user_id='telegram-owner'")
-      .first()).toEqual({ sources_json: '["gmail"]', include_body: 1 })
+    expect((await updateTelegramSettings(environment, owner, request(['gmail'], true, 'html'))).status).toBe(400)
+    const updated = await updateTelegramSettings(environment, owner, request(['gmail']))
+    expect(updated.status).toBe(200)
+    expect((await updated.json() as { bodyFormat: string }).bodyFormat).toBe('rich')
+    expect(await env.DB.prepare("SELECT sources_json,include_body,body_format FROM notification_endpoints WHERE user_id='telegram-owner'")
+      .first()).toEqual({ sources_json: '["gmail"]', include_body: 1, body_format: 'rich' })
     expect(await env.DB.prepare("SELECT sources_json FROM notification_endpoints WHERE user_id='telegram-pair-owner'")
       .first()).toEqual(pairedBefore)
   })

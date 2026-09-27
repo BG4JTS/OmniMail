@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getTelegramBot, registerTelegramWebhook, sendTelegramMessage, sendTelegramTextDocument, TelegramApiError } from './telegram-client'
+import { getTelegramBot, registerTelegramWebhook, sendTelegramMessage, sendTelegramRichMessage, sendTelegramTextDocument, TelegramApiError } from './telegram-client'
 
 const token = '123456:abcdefghijklmnopqrstuvwxyz'
 afterEach(() => vi.unstubAllGlobals())
@@ -58,5 +58,17 @@ describe('Telegram Bot API client', () => {
     const document = form.get('document') as File
     expect(document.name).toBe('omnimail-message.txt')
     expect(await document.text()).toBe('完整正文\n第二行')
+  })
+
+  it('sends formatted HTML as a protected rich message', async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ ok: true, result: { message_id: 1 } }))
+    vi.stubGlobal('fetch', fetcher)
+    await sendTelegramRichMessage(token, '123456', '<p><b>新邮件</b></p>')
+    const [url, init] = fetcher.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain('/sendRichMessage')
+    expect(JSON.parse(init.body as string)).toEqual({
+      chat_id: '123456', rich_message: { html: '<p><b>新邮件</b></p>' },
+      skip_entity_detection: true, protect_content: true,
+    })
   })
 })

@@ -147,6 +147,10 @@
   padding-left: 26px;
 }
 
+.telegram-body-option .telegram-field {
+  padding: 8px 0 6px 26px;
+}
+
 .telegram-quiet-grid {
   display: grid;
   width: 100%;
