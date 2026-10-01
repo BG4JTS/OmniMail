@@ -4,8 +4,11 @@ function json(route: Route, body: unknown) {
   return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: boolean } = {}) {
+async function mockLinuxDoMail(page: Page, options: {
+  rejectCredentialUpdate?: boolean; rejectReadUpdate?: boolean
+} = {}) {
   let account: null | Record<string, unknown> = null
+  let inboxIsRead = false
   const connections: Array<{ username: string; password: string }> = []
   const credentialUpdates: Array<{ password: string }> = []
   const searches: Array<{ folder: 'inbox' | 'sent'; query: string }> = []
@@ -89,19 +92,22 @@ async function mockLinuxDoMail(page: Page, options: { rejectCredentialUpdate?: b
       })).filter((message) => !query || JSON.stringify(message).includes(query))
       return json(route, { messages })
     }
-    if (path === '/api/linux-do-mail/inbox/42') return json(route, { message: {
-      id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
-      subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
-      preview: '完整邮件内容', body: '完整邮件内容',
-      html: `<p>完整邮件内容</p>${'<p>Linux DO message details</p>'.repeat(80)}`, isRead: true,
-    } })
+    if (path === '/api/linux-do-mail/inbox/42') {
+      if (!options.rejectReadUpdate) inboxIsRead = true
+      return json(route, { message: {
+        id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
+        subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
+        preview: '完整邮件内容', body: '完整邮件内容',
+        html: `<p>完整邮件内容</p>${'<p>Linux DO message details</p>'.repeat(80)}`, isRead: inboxIsRead,
+      } })
+    }
     if (path === '/api/linux-do-mail/inbox') {
       const query = url.searchParams.get('q') || ''
       searches.push({ folder: 'inbox', query })
       const messages = [{
         id: '42', from: 'Linux DO <notice@linux.do>', to: 'member@linux.do',
         subject: '欢迎回来', date: '2026-08-22T00:00:00.000Z',
-        preview: '这是一封测试邮件', body: '', html: '', isRead: false,
+        preview: '这是一封测试邮件', body: '', html: '', isRead: inboxIsRead,
       }].filter((message) => !query || JSON.stringify(message).includes(query))
       return json(route, { messages })
     }
@@ -224,8 +230,21 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   await sentSearch.getByRole('button', { name: '清除搜索' }).click()
   await folders.getByRole('button', { name: '收件箱' }).click()
 
-  await page.getByRole('button', { name: /欢迎回来/ }).click()
+  const inboxRow = page.locator('.message-row').filter({ hasText: '欢迎回来' })
+  await expect(inboxRow).toHaveClass(/is-unread/)
+  await inboxRow.getByRole('button').click()
   const inboxReader = page.locator('.reader-pane')
+  await expect(inboxReader.frameLocator('iframe')
+    .getByText('完整邮件内容', { exact: true })).toBeVisible()
+  await expect(inboxRow).not.toHaveClass(/is-unread/)
+  await expect(inboxRow.locator('.message-row__unread-dot')).toHaveCount(0)
+  await expect(inboxReader.getByText('打开后同步已读')).toBeVisible()
+  await page.getByRole('button', { name: '返回邮件列表' }).click()
+  const searchesBeforeRefresh = state.searches.length
+  await page.getByRole('button', { name: '刷新收件箱' }).click()
+  await expect.poll(() => state.searches.length).toBeGreaterThan(searchesBeforeRefresh)
+  await expect(inboxRow).not.toHaveClass(/is-unread/)
+  await inboxRow.getByRole('button').click()
   await expect(inboxReader.frameLocator('iframe')
     .getByText('完整邮件内容', { exact: true })).toBeVisible()
   const readerContent = page.locator('.icloud-reader .reader-content')
@@ -244,6 +263,35 @@ test('connects a Linux DO mailbox with username and password and reads mail', as
   expect(await page.evaluate(() => (
     document.documentElement.scrollWidth <= document.documentElement.clientWidth
   ))).toBe(true)
+})
+
+test('keeps an unread message readable when the server cannot synchronize Seen', async ({ page }) => {
+  const options = { rejectReadUpdate: true }
+  const state = await mockLinuxDoMail(page, options)
+  await page.goto('/linux-do-mail')
+  const connectDialog = await openConnectDialog(page)
+  await connectDialog.getByLabel('邮箱用户名').fill('member@linux.do')
+  await connectDialog.getByLabel('密码或认证令牌').fill('test-token')
+  await connectDialog.getByRole('button', { name: '验证并连接' }).click()
+
+  const row = page.locator('.message-row').filter({ hasText: '欢迎回来' })
+  await expect(row).toHaveClass(/is-unread/)
+  await row.getByRole('button').click()
+  await expect(page.locator('.reader-pane').frameLocator('iframe')
+    .getByText('完整邮件内容', { exact: true })).toBeVisible()
+  await expect(row).toHaveClass(/is-unread/)
+  await expect(row.locator('.message-row__unread-dot')).toHaveCount(1)
+  await expect(page.getByRole('alert')).toHaveCount(0)
+
+  const searchesBeforeRefresh = state.searches.length
+  await page.getByRole('button', { name: '刷新收件箱' }).click()
+  await expect.poll(() => state.searches.length).toBeGreaterThan(searchesBeforeRefresh)
+  await expect(row).toHaveClass(/is-unread/)
+
+  options.rejectReadUpdate = false
+  await row.getByRole('button').click()
+  await expect(row).not.toHaveClass(/is-unread/)
+  await expect(row.locator('.message-row__unread-dot')).toHaveCount(0)
 })
 
 test('keeps the credential dialog recoverable after validation fails', async ({ page }) => {

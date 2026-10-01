@@ -11,7 +11,7 @@ import {
   LinuxDoMailStoreError,
   publicLinuxDoMailAccount,
 } from './linux-do-mail-store'
-import type { LinuxDoMailAccount } from './linux-do-mail-types'
+import { isLinuxDoMailMessageUid, type LinuxDoMailAccount } from './linux-do-mail-types'
 import type { Env, MessageRow, SessionUser, StoredBody } from '../../app/types'
 
 function responseError(error: unknown): Response {
@@ -241,7 +241,7 @@ export async function getLinuxDoMailMessage(
 ): Promise<Response> {
   let client: LinuxDoMailImapClient | undefined
   try {
-    if (!/^\d+$/.test(uid) || Number(uid) < 1) {
+    if (!isLinuxDoMailMessageUid(uid)) {
       throw new LinuxDoMailStoreError(400, '邮件 UID 无效。')
     }
     const store = new LinuxDoMailAccountStore(env, user.id)

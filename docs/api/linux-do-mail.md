@@ -203,20 +203,24 @@ curl --request GET \
   --header "Authorization: Bearer om_at_..."
 ```
 
-<!-- endpoint:GET /api/linux-do-mail/inbox/:uid catalog:54cd9f206b97 -->
+<!-- endpoint:GET /api/linux-do-mail/inbox/:uid catalog:e8ad5a37ebfd -->
 ## `GET /api/linux-do-mail/inbox/{uid}`
 
 **读取 Linux DO Mail 正文 / Read a Linux DO Mail message**
 
-通过数字 IMAP UID 只读获取受大小限制的邮件正文。
+通过数字 IMAP UID 获取受大小限制的邮件正文，并尝试同步标记已读。
 
-> Read a size-limited message by numeric IMAP UID without changing mailbox state.
+> Read a size-limited message by numeric IMAP UID and attempt to synchronize its Seen flag.
 
 | 项目 | 内容 |
 | --- | --- |
 | 认证 | 登录用户；支持 Session Cookie 或 Access Token |
 | 请求 | Path · uid |
 | 成功响应 | 200 · { message } |
+
+> 注意：已读写入失败不阻断正文响应；响应中的 isRead 表示服务器状态或本次成功写入的结果。
+>
+> Note: A Seen write failure does not block the body response; isRead reflects the server state or a successful update in this request.
 
 ### cURL 示例
 
