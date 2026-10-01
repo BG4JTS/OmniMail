@@ -51,7 +51,7 @@
 
 | 产品层 | 当前版本 | 支持层级 | 职责与兼容关系 |
 | --- | --- | --- | --- |
-| Web + Worker API | [`1.1.4`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/v1.1.4) | 稳定兼容基线 | 核心服务、Webmail、数据和所有邮箱来源；自托管实例的唯一服务端 |
+| Web + Worker API | [`1.2.0`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/v1.2.0) | 稳定兼容基线 | 核心服务、Webmail、数据和所有邮箱来源；自托管实例的唯一服务端 |
 | OmniMail Float | [`1.0.2`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/float-v1.0.2) | 稳定兼容基线 | Chrome Manifest V3 浏览器协作层；连接 Web/API `1.x`，不直连第三方邮箱 |
 | Android | [`0.3.0`](https://github.com/mibgb65-cloud/OmniMail/releases/tag/android-v0.3.0) | 独立预览版 | 原生移动客户端；仍处于 `0.x`，兼容承诺和发布节奏独立于 Web/Float |
 
@@ -67,6 +67,9 @@
 
 ### 1.x 兼容边界
 
+- Web `1.1.4 → 1.2.0` 新增可选 Telegram 私聊提醒、主邮箱正文转发，并修复 Linux DO 打开后同步已读。
+  升级需应用 `0038–0040` D1 迁移并部署通知 Queue；Telegram Bot Secret 为可选项。
+  升级与回滚步骤见 [Web 1.2.0 发布说明](docs/releases/web/v1.2.0.md)。
 - Web `1.1.3 → 1.1.4` 加强邮件列表已读和未读的字重与预览对比，不新增数据库迁移或 API 变更。
   升级步骤见 [Web 1.1.4 发布说明](docs/releases/web/v1.1.4.md)。
 - Float `1.0.1 → 1.0.2` 同步邮件列表视觉区分，并在 iCloud IMAP 邮件打开后更新列表已读状态。

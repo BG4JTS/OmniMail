@@ -1,6 +1,6 @@
 # Telegram 新邮件通知接入计划
 
-- 状态：已在 `codex/telegram-push` 分支实现并通过本地自动化；等待真实 Bot 私聊联调，尚未合并或部署
+- 状态：Web `1.2.0` 发布候选已在 `codex/release-web-1.2.0` 完成本地发布检查，待合入 `main` 正式发版；真实 Bot 私聊联调仍待验收
 - 计划日期：2026-09-27
 - 需求来源：[Issue #13：TG 或其他渠道推送](https://github.com/mibgb65-cloud/OmniMail/issues/13)
 - 首版边界：一个自托管实例使用一个 Telegram Bot；每位 OmniMail 用户绑定一个 Telegram 私聊；只推送新邮件提醒

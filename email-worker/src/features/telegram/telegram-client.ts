@@ -105,8 +105,7 @@ export async function sendTelegramRichMessage(token: string, chatId: string, htm
   }
   await callTelegram<object>(token, 'sendRichMessage', {
     chat_id: chatId,
-    rich_message: { html },
-    skip_entity_detection: true,
+    rich_message: { html, skip_entity_detection: true },
     protect_content: true,
   })
 }

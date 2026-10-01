@@ -216,7 +216,11 @@ describe('Telegram notification outbox', () => {
     expect(fetcher).toHaveBeenCalledTimes(rejectRich ? 2 : 1)
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit]
     expect(url).toContain('/sendRichMessage')
-    const payload = JSON.parse(init.body as string) as { rich_message: { html: string } }
+    const payload = JSON.parse(init.body as string) as {
+      rich_message: { html: string; skip_entity_detection: boolean }
+    }
+    expect(payload.rich_message.skip_entity_detection).toBe(true)
+    expect(payload).not.toHaveProperty('skip_entity_detection')
     expect(payload.rich_message.html).toContain('<h2>订单通知</h2>')
     expect(payload.rich_message.html).toContain('<a href="https://example.com/order">查看</a>')
     expect(payload.rich_message.html).not.toContain('bad()')

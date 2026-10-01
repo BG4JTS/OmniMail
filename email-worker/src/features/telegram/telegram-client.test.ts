@@ -67,8 +67,9 @@ describe('Telegram Bot API client', () => {
     const [url, init] = fetcher.mock.calls[0] as [string, RequestInit]
     expect(url).toContain('/sendRichMessage')
     expect(JSON.parse(init.body as string)).toEqual({
-      chat_id: '123456', rich_message: { html: '<p><b>新邮件</b></p>' },
-      skip_entity_detection: true, protect_content: true,
+      chat_id: '123456',
+      rich_message: { html: '<p><b>新邮件</b></p>', skip_entity_detection: true },
+      protect_content: true,
     })
   })
 })

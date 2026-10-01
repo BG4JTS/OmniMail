@@ -5,6 +5,26 @@
 后续 Web、OmniMail Float 与 Android 分别使用 `vX.Y.Z`、`float-vX.Y.Z` 和
 `android-vX.Y.Z`，三套版本号互不影响；以下既有历史记录保持不变。
 
+## [1.2.0] - 2026-10-01
+
+- 新增可选 Telegram 私聊新邮件提醒，覆盖八类已索引邮箱来源，支持来源选择、消息内容级别、
+  免打扰时段、时区、暂停、解除连接与测试消息；默认只发送来源和站内链接。
+- 主邮箱正文可选转发为纯文本或 Telegram 富文本；长纯文本作为 `.txt` 文件发送，富文本失败
+  时回退纯文本。外部邮箱不发送正文，附件不转发。
+- 优化 Telegram 设置卡片，明确连接状态、内容隐私选项和免打扰设置。
+- Linux DO 未读邮件打开后尝试写入服务器已读标记并更新列表；写入失败时仍返回正文，重新打开可重试。
+- 修正 Telegram 富文本请求中关闭自动识别的参数位置，并加强 Linux DO UID 校验。
+
+### 升级说明
+
+- 从 Web `1.1.4` 升级时，先备份 D1，再运行 `npm run build` 和 `npm run deploy`；部署脚本自动
+  应用 `0038_telegram_notifications.sql`、`0039_telegram_message_body.sql`、`0040_telegram_rich_body.sql`
+  并部署独立通知 Queue 与死信队列。
+- Telegram 为可选功能；启用时配置 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_WEBHOOK_SECRET` 两个 Secret，
+  由主管理员从 HTTPS 正式站点注册 Webhook，再由用户连接私聊。原有邮箱连接无需重新绑定。
+- 回滚旧 Worker 前先停止通知队列消费，保留新增 D1 表和字段。完整说明见
+  [Web 1.2.0 发布说明](docs/releases/web/v1.2.0.md)。Float 与 Android 版本保持独立。
+
 ## [1.1.4] - 2026-09-27
 
 - 邮件列表以更清晰的字重和预览对比区分已读与未读，继续保留未读状态点；收藏星标仍独立于已读状态。
