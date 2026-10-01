@@ -1,12 +1,12 @@
 import { cachedNotification, cacheNotification, notificationStamp, notificationVersionStatement } from './notification-cache'
 import type { Env, SessionUser } from '../../app/types'
 
-const SOURCES = [
+export const SOURCES = [
   'omnimail', 'icloud', 'linuxdo', 'gmail', 'microsoft', 'qq', 'naver', 'yandex',
 ] as const
-type NotificationSource = typeof SOURCES[number]
+export type NotificationSource = typeof SOURCES[number]
 
-const MESSAGE_SELECTS: Record<NotificationSource, string> = {
+export const MESSAGE_SELECTS: Record<NotificationSource, string> = {
   omnimail: `SELECT 'omnimail' AS source, '' AS account_id, m.id AS message_id,
     m.sender_name, m.sender_address, m.subject, COALESCE(m.received_at, m.created_at) AS message_date,
     m.is_read

@@ -10,6 +10,7 @@ import {
 } from '../../../shared/api'
 import { t } from '../../../shared/i18n'
 import '../styles/users/account-settings.css'
+import '../styles/users/telegram-settings.css'
 import '../styles/users/account-settings-responsive.css'
 import '../styles/mail/admin-mail-management.css'
 import '../styles/shell/admin-workspace.css'

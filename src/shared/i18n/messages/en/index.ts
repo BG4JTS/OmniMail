@@ -19,6 +19,7 @@ import { enRateLimit } from './rate-limit'
 import { enQqMail } from './qq-mail'
 import { enSecurity } from './security'
 import { enVersion } from './version'
+import { enTelegram } from './telegram'
 
 export const englishTranslations: Record<string, string> = {
   ...enMailCredentials,
@@ -34,6 +35,7 @@ export const englishTranslations: Record<string, string> = {
   ...enMailboxSettings,
   ...enRateLimit,
   ...enVersion,
+  ...enTelegram,
   ...enICloud,
   ...enLinuxDoMail,
   ...enGmail,

@@ -118,7 +118,7 @@ describe('部署 D1 迁移', () => {
     try {
       await deploy([], deps)
       expect(events[0]).toBe('deploy')
-      expect(f.db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: 36 })
+      expect(f.db.prepare('SELECT COUNT(*) AS count FROM d1_migrations').get()).toEqual({ count: migrationNames().length })
       for (const name of ['settings', 'users', 'messages', 'mail_notification_versions', 'idx_messages_recipient_folder_sort']) {
         expect(f.db.prepare('SELECT name FROM sqlite_master WHERE name = ?').get(name)).toEqual({ name })
       }
@@ -139,7 +139,7 @@ describe('部署 D1 迁移', () => {
     await applyD1Migrations(f)
     await applyD1Migrations(f)
     expect(f.imports()).toBe(1)
-    expect(f.db.prepare('SELECT count(*) AS count FROM d1_migrations').get()).toEqual({ count: 36 })
+    expect(f.db.prepare('SELECT count(*) AS count FROM d1_migrations').get()).toEqual({ count: migrationNames().length })
     expect(f.db.prepare("SELECT name FROM sqlite_master WHERE name = 'users'").get()).toEqual({ name: 'users' })
     expect(f.files.every((file) => !existsSync(file))).toBe(true)
   })
@@ -149,7 +149,7 @@ describe('部署 D1 迁移', () => {
     await applyD1Migrations(f)
     expect(f.imports()).toBe(1)
     expect(f.sleep).toHaveBeenCalledOnce()
-    expect(f.db.prepare('SELECT count(*) AS count FROM d1_migrations').get()).toEqual({ count: 36 })
+    expect(f.db.prepare('SELECT count(*) AS count FROM d1_migrations').get()).toEqual({ count: migrationNames().length })
   })
 
   it('导入前网络中断可以安全重试，所有临时 SQL 文件均被清理', async () => {
@@ -165,7 +165,7 @@ describe('部署 D1 迁移', () => {
     f.db.exec(readFileSync(join(root, 'scripts/bootstrap-legacy-d1.sql'), 'utf8'))
     f.db.exec(migrationImport(migrationNames().slice(0, 20)))
     await applyD1Migrations(f)
-    expect(f.db.prepare('SELECT count(*) AS count FROM d1_migrations').get()).toEqual({ count: 36 })
+    expect(f.db.prepare('SELECT count(*) AS count FROM d1_migrations').get()).toEqual({ count: migrationNames().length })
     expect(f.imports()).toBe(1)
   })
 

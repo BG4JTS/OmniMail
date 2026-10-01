@@ -23,7 +23,7 @@ export const enLinuxDoMail: Record<string, string> = {
   '发件：{address}': 'From: {address}',
   '排队中': 'Queued',
   '发送失败': 'Send failed',
-  'IMAP 只读': 'Read-only IMAP',
+  '打开后同步已读': 'Sync read status on open',
   'Linux DO 邮箱已连接': 'Linux DO Mail connected',
   '账号验证成功': 'Account verified',
   'Linux DO 邮箱已断开': 'Linux DO Mail disconnected',

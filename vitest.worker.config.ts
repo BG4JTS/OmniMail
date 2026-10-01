@@ -23,6 +23,7 @@ export default defineConfig(async () => {
           r2Buckets: ['MAIL_BUCKET'],
           queueProducers: {
             MAIL_QUEUE: { queueName: 'omnimail-mail' },
+            NOTIFICATION_QUEUE: { queueName: 'omnimail-notifications' },
           },
         },
       }),

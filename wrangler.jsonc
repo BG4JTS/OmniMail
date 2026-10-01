@@ -47,6 +47,10 @@
       {
         "binding": "MAIL_QUEUE",
         "queue": "omnimail-mail"
+      },
+      {
+        "binding": "NOTIFICATION_QUEUE",
+        "queue": "omnimail-notifications"
       }
     ],
     "consumers": [
@@ -56,6 +60,13 @@
         "max_batch_timeout": 2,
         "max_retries": 3,
         "dead_letter_queue": "omnimail-mail-dead"
+      },
+      {
+        "queue": "omnimail-notifications",
+        "max_batch_size": 1,
+        "max_batch_timeout": 2,
+        "max_retries": 3,
+        "dead_letter_queue": "omnimail-notifications-dead"
       }
     ]
   },

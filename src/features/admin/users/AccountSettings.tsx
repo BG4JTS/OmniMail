@@ -24,6 +24,7 @@ import { AdminPageHeader } from '../shell/AdminPageHeader'
 import { ThemeToggle } from '../../auth/components/AuthPages'
 import { LanguageToggle } from '../../../shared/ui/language/LanguageToggle'
 import { TotpSettings } from '../../auth/components/TotpSettings'
+import { TelegramNotificationSettings } from './TelegramNotificationSettings'
 
 function errorMessage(error: unknown): string {
   return t(error instanceof Error ? error.message : '保存账户设置时发生了未知错误。')
@@ -292,6 +293,7 @@ export function AccountSettings({
         </div>
 
         <div className="account-settings-column">
+          <TelegramNotificationSettings isSuperAdmin={user.role === 'super_admin'} />
           <section className="admin-card account-card">
             <header>
               <KeyRound size={17} />
