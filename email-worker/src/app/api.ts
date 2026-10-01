@@ -5,6 +5,7 @@ import { registerAccountRoutes } from './routes/account-routes'
 import { registerAdminRoutes } from './routes/admin-routes'
 import { registerMailRoutes } from './routes/mail-routes'
 import { registerPublicRoutes } from './routes/public-routes'
+import { registerTelegramRoutes } from '../features/telegram/telegram-routes'
 import { logWorkerError } from '../shared/observability/structured-log'
 import { d1QuotaResponse } from '../platform/d1/quota-guard'
 
@@ -12,6 +13,7 @@ const app = new Hono<AppContext>()
 
 registerMiddleware(app)
 registerPublicRoutes(app)
+registerTelegramRoutes(app)
 registerAccountRoutes(app)
 registerAdminRoutes(app)
 registerMailRoutes(app)

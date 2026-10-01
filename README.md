@@ -135,6 +135,7 @@ Serverless Webmail：
 - 左侧草稿箱默认保留最近 5 封未发送邮件，管理员可按用户级别设置 1–20 封上限；
   草稿附件随草稿自动保存
 - Webmail 打开期间可选浏览器新邮件通知
+- 可选 Telegram 私聊新邮件提醒；配置步骤见 [Telegram 通知指南](docs/TELEGRAM_NOTIFICATIONS.md)
 
 ### iCloud 隐藏邮箱
 
