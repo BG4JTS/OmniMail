@@ -30,3 +30,10 @@ export type PublicLinuxDoMailAccount = Omit<
 > & { hasPassword: boolean }
 
 export type LinuxDoMailMessage = ICloudMessage
+
+export function isLinuxDoMailMessageUid(value: unknown): value is string {
+  if (typeof value !== 'string' || !value || value.length > 10) return false
+  const uid = Number(value)
+  // 仅允许规范的 32 位正整数，防止控制字符或 UID 序列进入 IMAP 读写命令。
+  return Number.isInteger(uid) && uid > 0 && uid <= 0xffff_ffff && String(uid) === value
+}

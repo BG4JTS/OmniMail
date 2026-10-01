@@ -100,7 +100,7 @@ function MessageReader({ message, folder, loading, remoteImagesEnabled, onBack }
           scrollTopLabel={t('回到顶部')} subject={subject}
           subjectPinned={readerScroll.subjectPinned} onScrollTop={readerScroll.scrollToTop} />
         {outgoing ? <DeliveryStatus message={message} />
-          : <span className="icloud-source-badge is-imap">{t('IMAP 只读')}</span>}
+          : <span className="icloud-source-badge is-imap">{t('打开后同步已读')}</span>}
       </header>
       <div ref={readerRoot} className="reader-content icloud-reader-content">
         <div className="icloud-reader-inner">
@@ -283,7 +283,14 @@ export function LinuxDoMailWorkspace({ remoteImagesEnabled, canSend }: {
       const result = message.direction === 'outgoing'
         ? await api.linuxDoMailSentMessage(message.id, controller.signal)
         : await api.linuxDoMailMessage(message.id, controller.signal)
-      if (!controller.signal.aborted) setOpened(result.message)
+      if (!controller.signal.aborted) {
+        setOpened(result.message)
+        if (typeof result.message.isRead === 'boolean') {
+          setMessages((current) => current.map((item) => item.id === message.id
+            ? { ...item, isRead: result.message.isRead }
+            : item))
+        }
+      }
     } catch (openError) {
       if (!controller.signal.aborted) setError(errorMessage(openError))
     } finally {

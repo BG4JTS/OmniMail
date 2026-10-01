@@ -8,12 +8,13 @@ import {
 } from '../../platform/imap/imap-index'
 import { iCloudImapMessageIsRead } from '../icloud/icloud-imap-flags'
 import { parseICloudMessage } from '../icloud/icloud-message-parser'
-import type { LinuxDoMailMessage } from './linux-do-mail-types'
+import { isLinuxDoMailMessageUid, type LinuxDoMailMessage } from './linux-do-mail-types'
 
 const IMAP_HOST = 'mail.linux.do'
 const IMAP_PORT = 993
 const LIST_MESSAGE_BYTES = 65_536
 const DETAIL_MESSAGE_BYTES = 524_288
+const READ_STATE_TIMEOUT_MS = 5_000
 
 export { ImapConnectionError as LinuxDoMailRemoteError }
 
@@ -95,10 +96,10 @@ export class LinuxDoMailImapClient {
   }
 
   async getMessage(uid: string): Promise<LinuxDoMailMessage> {
-    if (!/^\d+$/.test(uid) || Number(uid) < 1) {
+    if (!isLinuxDoMailMessageUid(uid)) {
       throw new ImapConnectionError(400, '邮件 UID 无效。', true)
     }
-    await this.connection.command('EXAMINE INBOX')
+    await this.connection.command('SELECT INBOX')
     const result = await this.connection.command(
       `UID FETCH ${uid} (UID FLAGS BODY.PEEK[]<0.${DETAIL_MESSAGE_BYTES}>)`,
     )
@@ -106,11 +107,28 @@ export class LinuxDoMailImapClient {
       new RegExp(`\\bUID ${uid}\\b`, 'i').test(line)
     ))
     if (!literal) throw new ImapConnectionError(404, '邮件不存在或已被移动。', true)
-    return parseICloudMessage(
+    const message = await parseICloudMessage(
       literal.data,
       uid,
       true,
       iCloudImapMessageIsRead(literal.line),
     )
+    if (!message.isRead) {
+      try {
+        await this.connection.command(
+          `UID STORE ${uid} +FLAGS.SILENT (\\Seen)`,
+          502,
+          READ_STATE_TIMEOUT_MS,
+        )
+        message.isRead = true
+      } catch (error) {
+        // 已读写入失败不应阻断正文，也不能让客户端误以为服务器已同步成功。
+        console.error('Linux DO 邮件已读状态同步失败', {
+          type: error instanceof Error ? error.name : typeof error,
+          status: error instanceof ImapConnectionError ? error.status : undefined,
+        })
+      }
+    }
+    return message
   }
 }

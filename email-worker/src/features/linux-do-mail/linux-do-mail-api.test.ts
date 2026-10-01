@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createLinuxDoMailAccount, getLinuxDoMailAccount } from './linux-do-mail-api'
+import {
+  createLinuxDoMailAccount, getLinuxDoMailAccount, getLinuxDoMailMessage,
+} from './linux-do-mail-api'
 import type { Env, SessionUser } from '../../app/types'
 
 const user = {
@@ -66,4 +68,15 @@ describe('Linux DO Mail account API validation', () => {
       error: 'Linux DO Mail 功能尚未配置 MAIL_CREDENTIALS_KEY 或 LINUX_DO_MAIL_CREDENTIALS_KEY。',
     })
   })
+})
+
+describe('Linux DO Mail message API validation', () => {
+  it.each(['0', '42\n', '42\r\nA0001 LOGOUT', '42,43', '1:*', '4294967296'])(
+    'rejects invalid UID %j before storage or network access', async (uid) => {
+      const response = await getLinuxDoMailMessage({} as Env, user, uid)
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({ error: '邮件 UID 无效。' })
+    },
+  )
 })

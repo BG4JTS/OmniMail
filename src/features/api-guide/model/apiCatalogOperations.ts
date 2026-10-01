@@ -219,8 +219,9 @@ export const linuxDoMailEndpoints: ApiEndpoint[] = [
   {
     method: 'GET', path: '/api/linux-do-mail/inbox/:uid', group: 'linuxdoMail', auth: 'authenticated',
     title: l('读取 Linux DO Mail 正文', 'Read a Linux DO Mail message'),
-    description: l('通过数字 IMAP UID 只读获取受大小限制的邮件正文。', 'Read a size-limited message by numeric IMAP UID without changing mailbox state.'),
+    description: l('通过数字 IMAP UID 获取受大小限制的邮件正文，并尝试同步标记已读。', 'Read a size-limited message by numeric IMAP UID and attempt to synchronize its Seen flag.'),
     request: 'Path · uid', response: '200 · { message }',
+    notes: [l('已读写入失败不阻断正文响应；响应中的 isRead 表示服务器状态或本次成功写入的结果。', 'A Seen write failure does not block the body response; isRead reflects the server state or a successful update in this request.')],
   },
   {
     method: 'GET', path: '/api/linux-do-mail/sent', group: 'linuxdoMail', auth: 'authenticated',
