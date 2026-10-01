@@ -20,6 +20,7 @@ import { handleComposeRequest, verifyOmniCompose, verifyOmniReply } from './exte
 import { verifyNotificationSettings } from './extension-smoke-notifications.mjs'
 import { verifyEnglishPanel } from './extension-smoke-language.mjs'
 import { verifyCodeActions } from './extension-smoke-verification.mjs'
+import { verifyDomainKeyboardSelection } from './extension-smoke-select.mjs'
 const extensionPath = resolve('dist-extension'); const previewMode = process.argv.includes('--preview'); const updateStoreAssets = process.argv.includes('--update-store-assets')
 const profilePath = await mkdtemp(resolve(tmpdir(), 'omnimail-extension-'))
 const screenshotPath = resolve('test-results', 'extension-smoke.png'); const dropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open.png'); const darkDropdownScreenshotPath = resolve('test-results', 'extension-dropdown-open-dark.png')
@@ -310,11 +311,7 @@ try {
   await page.screenshot({ path: darkDropdownScreenshotPath })
   await panelFrame.getByRole('option', { name: '@example.com' }).click()
   await page.emulateMedia({ colorScheme: 'light' })
-  await domainCombobox.press('ArrowDown')
-  await panelFrame.getByRole('listbox', { name: '邮箱域名' }).waitFor()
-  await domainCombobox.press('ArrowDown')
-  await domainCombobox.press('Enter')
-  assert.equal(await domainCombobox.textContent(), '@aicnos.com')
+  await verifyDomainKeyboardSelection(page, panelFrame)
   await domainCombobox.click()
   await panelFrame.getByRole('option', { name: '@example.com' }).click()
   assert.equal(exchangeBody.clientId, serviceWorker.url().split('/')[2])
